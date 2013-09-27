@@ -1,0 +1,14 @@
+<package>
+    <description brief="Orocos disposvel Component package">
+        This package contains the components of the disposvel package
+    </description>
+    <!--NOTE: set the license and author before you publish this code-->
+    <license></license>
+    <author>Karama Sriti</author>
+    <depend package="rtt" />
+    <depend package="tf" />
+    <depend package="roslib" />
+    <depend package="rtt_rosnode" />
+    <depend package="rtt_geometry_msgs" />
+</package>
+

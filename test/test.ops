@@ -1,0 +1,55 @@
+//importation des librairies necessaires
+import("tf_human")
+import("tf_robot")
+import("tf_reader")
+import("disposvel")
+import("controller")
+
+//construstion des composants 
+loadComponent("tfHuman", "Tf_human")
+loadComponent("tfRobot", "Tf_robot")
+loadComponent("tf","tf_reader::Tf_reader")
+loadComponent("getDistances","Disposvel")
+loadComponent("test","Controller")
+
+//se connecter au topic tf de ROS
+stream("tf.tf_in",ros.topic("/tf")) 
+
+//configuration du composant tfHuman
+tfHuman.setPeriod(0.3)
+tfHuman.numFrames = 8
+tfHuman.configure()
+tfHuman.start()
+
+//configuration du composant tfRobot
+tfRobot.setPeriod(0.3)
+tfRobot.numSegments = 7
+tfRobot.configure()
+tfRobot.start()
+
+connectPeers("getDistances","tf")
+connectServices("getDistances","tf")
+getDistances.number_of_robot_frames = 7
+getDistances.number_of_human_frames = 8
+//7
+getDistances.number_of_robot_links = 3
+getDistances.number_of_human_limbes = 7
+tf.configure
+tf.start
+
+getDistances.configure
+getDistances.setPeriod(0.5)
+getDistances.start
+
+
+var ConnPolicy cp_1
+cp_1.type = DATA  
+cp_1.size = 10   
+cp_1.lock_policy = LOCKED 
+//7
+test.number_of_robot_links = 7
+test.number_of_human_limbes = 7
+test.configure
+test.setPeriod(0.5)
+
+//connect("getDistances2.sortie","test.entree",cp_1)
