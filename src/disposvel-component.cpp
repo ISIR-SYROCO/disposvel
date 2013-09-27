@@ -7,6 +7,7 @@
  */
 #include <disposvel-component.hpp>
 #include <support.h>
+
 /*! \brief constructor of the component disposvel, that computes distances, positions and velocities  */
 Disposvel::Disposvel(const std::string &name) :
 	RTT::TaskContext(name, RTT::TaskContext::PreOperational)
@@ -149,11 +150,11 @@ void Disposvel::updateHook()
 	std::string robot_frame_id[] = {"/segment_1","/segment_2","/segment_3","/segment_4","/segment_5","/segment_6","/segment_7"}; // if tf are recovered from tf_robot
 
 	std::string human_frame_id[] = { "/head_1","/torso_1","/left_elbow_1" ,"/left_shoulder_1" ,"/left_hand_1" ,
-	  	  		         "/right_elbow_1","/right_shoulder_1","/right_hand_1"}; // only 7DOF are considered
+		"/right_elbow_1","/right_shoulder_1","/right_hand_1"}; // only 7DOF are considered
 
 	tf::StampedTransform world;
-		world.setRotation( tf::Quaternion( 0, 0, 0, 1 ) );
-		world.setOrigin( tf::Vector3(0, 0, 0 ) );
+	world.setRotation( tf::Quaternion( 0, 0, 0, 1 ) );
+	world.setOrigin( tf::Vector3(0, 0, 0 ) );
 
 	//Segment robot_links_now[num_rob_links], robot_links_[num_rob_links],human_limbes_now[num_hum_limb], human_limbes_[num_hum_limb] ;
 	std::vector<Segment> robot_links_now, robot_links_,human_limbes_now, human_limbes_ ;
@@ -186,15 +187,15 @@ void Disposvel::updateHook()
 	//------------------------------------------------------<
 	//-----------------------------------> Segments Set for now transforms 
 	initSegments(human_transform_now, 
-		     human_transform, 
+			human_transform, 
 			robot_transform_now, 
 			robot_transform, 
-				num_hum_limb, 
-				num_rob_links,
-					human_limbes_now, 
-					human_limbes_,
-						robot_links_now, 
-						robot_links_);
+			num_hum_limb, 
+			num_rob_links,
+			human_limbes_now, 
+			human_limbes_,
+			robot_links_now, 
+			robot_links_);
 	//------------------------------------------------------<
 
 	//-----------------------------------> calcul des distances et envoie des donnees		
@@ -202,6 +203,7 @@ void Disposvel::updateHook()
 	Distance dist[num_rob_links*num_hum_limb];
 
 	unsigned int n(0), size(num_rob_links*num_hum_limb);
+	unsigned int indexMinDistance = 0;
 	std::vector<ControlData> donnee;
 	donnee.resize(size);
 
@@ -230,19 +232,26 @@ void Disposvel::updateHook()
 			donnee[n].vpr[0] = (dist_now[n].getPointBelongToRobot().getX() - dist[n].getPointBelongToRobot().getX());// /duree; 
 			donnee[n].vpr[1] = (dist_now[n].getPointBelongToRobot().getY() - dist[n].getPointBelongToRobot().getY());// /duree; 
 			donnee[n].vpr[2] = (dist_now[n].getPointBelongToRobot().getZ() - dist[n].getPointBelongToRobot().getZ());// /duree; 
+			if(donnee[n].distance <= donnee[indexMinDistance].distance)
+			{
+				indexMinDistance = n;
+			}
 			//--------------------------------------------------
-			std::cout << "-----------------------------------" <<  std::endl;
-			std::cout << "ID : " << donnee[n].distance_id << std::endl;
-			std::cout << "distance : " << donnee[n].distance << std::endl;
-			std::cout << "position human : " << donnee[n].ph[0]   <<","<< donnee[n].ph[1]   <<","<< donnee[n].ph[2]   << std::endl;
-			std::cout << "position robot : " << donnee[n].pr[0]   <<","<< donnee[n].pr[1]   <<","<< donnee[n].pr[2]   << std::endl;
-			std::cout << "velocity human : " << donnee[n].vph[0]  <<","<< donnee[n].vph[1]  <<","<< donnee[n].vph[2]  << std::endl;
-			std::cout << "velocity robot : " << donnee[n].vpr[0]  <<","<< donnee[n].vpr[1]  <<","<< donnee[n].vpr[2]  << std::endl;
-			std::cout << "-----------------------------------" <<  std::endl;
-			//--------------------------------------------------
-			n++;
 		}
-	}		
+		//--------------------------------------------------
+		n++;
+	}
+
+	nav_msgs::Path path = computeNavPathMsg(donnee[indexMinDistance].ph, donnee[indexMinDistance].pr);
+	port_nav.write(path);
+	if(!isnan(donnee[indexMinDistance].distance))
+	{
+		port_distance.write(donnee[indexMinDistance].distance);
+	}
+	else{
+		port_distance.write(0.0);
+	}	
+
 	sortie.write(donnee);
 }//update
 //----------------------------------> stop
@@ -268,7 +277,47 @@ void Disposvel::addPorts()
 	}
 	this->addPort("sortie",sortie);
 	sortie.setDataSample(donnee);
+
+	this->addPort("nav_path", port_nav);
+	this->addPort("distance", port_distance);
 }//addPorts
+
+nav_msgs::Path Disposvel::computeNavPathMsg(std::vector<double> ph, std::vector<double> pr){
+
+	geometry_msgs::Point geom_ph;
+	geom_ph.x = ph[0];
+	geom_ph.y = ph[1];
+	geom_ph.z = ph[2];
+
+	geometry_msgs::Point geom_pr;
+	geom_pr.x = pr[0];
+	geom_pr.y = pr[1];
+	geom_pr.z = pr[2];
+				
+	geometry_msgs::Quaternion q;
+	q.x = 0.; q.y = 0.; q.z = 0.; q.w = 1.;
+
+	geometry_msgs::PoseStamped Pose_ph;
+	Pose_ph.pose.position = geom_ph;
+	Pose_ph.pose.orientation = q;
+	Pose_ph.header.frame_id = "/world";
+	Pose_ph.header.stamp = ros::Time::now();
+
+	geometry_msgs::PoseStamped Pose_pr;
+	Pose_pr.pose.position = geom_pr;
+	Pose_pr.pose.orientation = q;
+	Pose_ph.header.frame_id = "/world";
+	Pose_ph.header.stamp = ros::Time::now();
+
+	nav_msgs::Path path;
+	path.header.frame_id = "/world";
+	path.header.stamp = ros::Time::now();
+	path.poses.push_back(Pose_ph);
+	path.poses.push_back(Pose_pr);
+	
+	return path;
+}
+
 //------------------------------>
 ORO_CREATE_COMPONENT(Disposvel);
 //------------------------------<
